@@ -1,0 +1,164 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum OrganizationStatus {
+  ACTIVE
+  DELETED
+  SUSPENDED
+}
+
+enum EndpointStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum DeliveryStatus {
+  PENDING
+  PROCESSING
+  RETRYING
+  DELIVERED
+  DEAD_LETTERED
+}
+
+enum DeliveryAttemptStatus {
+  IN_PROGRESS
+  SUCCEEDED
+  FAILED
+  INTERRUPTED
+}
+
+model Organization {
+  id        String             @id @default(uuid()) @db.Uuid
+  name      String
+  status    OrganizationStatus @default(ACTIVE)
+  createdAt DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime           @updatedAt @db.Timestamptz(6)
+
+  webhookEndpoints WebhookEndpoint[]
+  apiKeys          ApiKey[]
+  events           Event[]
+}
+
+model WebhookEndpoint {
+  id                         String                      @id @default(uuid()) @db.Uuid
+  organizationId             String                      @db.Uuid
+  url                        String
+  name                       String                      @db.Text()
+  secretEncrypted            String
+  status                     EndpointStatus              @default(ACTIVE)
+  createdAt                  DateTime                    @default(now()) @db.Timestamptz(6)
+  updatedAt                  DateTime                    @updatedAt @db.Timestamptz(6)
+  deliveries                 Delivery[]
+  endpointEventSubscriptions EndpointEventSubscription[]
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, id], name: "webhook_endpoint_organization_id_id_key")
+}
+
+model ApiKey {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  keyHash        String       @unique
+  name           String
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  lastUsedAt     DateTime?    @db.Timestamptz(6)
+  revokedAt      DateTime?    @db.Timestamptz(6)
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId], name: "api_key_organization_id_idx")
+}
+
+model Event {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  type           String
+  payload        Json
+  occurredAt     DateTime? @db.Timestamptz(6)
+  receivedAt     DateTime  @default(now()) @db.Timestamptz(6)
+
+  deliveries      Delivery[]
+  idempotencyKeys IdempotencyKey[]
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, id], name: "events_organization_id_id_key")
+  @@index([organizationId, receivedAt], name: "events_organization_id_idx")
+}
+
+model EndpointEventSubscription {
+  id         String @id @default(uuid()) @db.Uuid
+  endpointId String @db.Uuid
+  eventType  String
+
+  endpoint WebhookEndpoint @relation(fields: [endpointId], references: [id])
+
+  @@unique([endpointId, eventType])
+  @@index([eventType], name: "endpoint_event_subscription_event_type_idx")
+}
+
+model Delivery {
+  id             String         @id @default(uuid()) @db.Uuid
+  eventId        String         @db.Uuid
+  endpointId     String         @db.Uuid
+  status         DeliveryStatus @default(PENDING)
+  attemptCount   Int            @default(0)
+  organizationId String         @db.Uuid
+  lastAttemptAt  DateTime?      @db.Timestamptz(6)
+  nextAttemptAt  DateTime?      @db.Timestamptz(6)
+  deliveredAt    DateTime?      @db.Timestamptz(6)
+  createdAt      DateTime       @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime       @updatedAt @db.Timestamptz(6)
+
+  attempts DeliveryAttempt[]
+
+  event    Event           @relation(fields: [organizationId, eventId], references: [organizationId, id])
+  endpoint WebhookEndpoint @relation(fields: [organizationId, endpointId], references: [organizationId, id])
+
+  @@unique([eventId, endpointId])
+  @@index([status, nextAttemptAt], name: "delivery_status_next_attempt_at_idx")
+  @@index([organizationId, eventId])
+  @@index([organizationId, endpointId])
+}
+
+model DeliveryAttempt {
+  id             String                @id @default(uuid()) @db.Uuid
+  deliveryId     String                @db.Uuid
+  error          String?               @db.Text
+  responseBody   String?               @db.Text
+  status         DeliveryAttemptStatus @default(IN_PROGRESS)
+  attemptNumber  Int
+  httpStatusCode Int?
+  startedAt      DateTime              @default(now()) @db.Timestamptz(6)
+  finishedAt     DateTime?             @db.Timestamptz(6)
+
+  delivery Delivery @relation(fields: [deliveryId], references: [id])
+
+  @@unique([deliveryId, attemptNumber])
+}
+
+model IdempotencyKey {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  idempotencyKey String
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  expiresAt      DateTime @db.Timestamptz(6)
+  eventId        String   @db.Uuid
+  requestHash    String
+
+  event Event @relation(fields: [organizationId, eventId], references: [organizationId, id])
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, eventId])
+}
