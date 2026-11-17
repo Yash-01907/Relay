@@ -1,11 +1,6 @@
-import type { Request, Response, NextFunction } from "express";
+import type { RequestHandler } from "express";
+import { ApiError } from "../errors/ApiError.js";
 
-export const notFound = (req: Request, res: Response, next: NextFunction) => {
-  res.status(404).json({
-        success: false,
-        error: {
-            message: "The requested resource was not found.",
-            code: "NOT_FOUND"
-        }
-    });
+export const notFound: RequestHandler = (req, res, next) => {
+  next(new ApiError(404, "The requested resource was not found.", "NOT_FOUND"));
 };

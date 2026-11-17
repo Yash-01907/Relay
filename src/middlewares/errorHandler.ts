@@ -4,15 +4,30 @@ import type {
   NextFunction,
   ErrorRequestHandler,
 } from "express";
+import { ApiError } from "../errors/ApiError.js";
 
 export const errorHandler: ErrorRequestHandler = (
-  err: Error,
+  err: unknown,
   req: Request,
   res: Response,
   next: NextFunction,
 ) => {
-  console.error(err.stack);
-  
+    if(res.headersSent){
+        return next(err);
+    }
+    if(err instanceof ApiError){
+       return res.status(err.statusCode).json({
+            success: false,
+            error: {
+                message: err.message,
+                code: err.errorCode,
+                details: err.details
+            }
+        })
+    }
+  console.error(err);
+
+
     res.status(500).json({
         success: false,
         error: {
