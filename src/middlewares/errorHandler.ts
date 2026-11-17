@@ -1,9 +1,23 @@
-import type { Request, Response, NextFunction } from "express";
+import type {
+  Request,
+  Response,
+  NextFunction,
+  ErrorRequestHandler,
+} from "express";
 
-export const errorHandler = (err: Error, req: Request, res: Response, next: NextFunction) => {
-    console.error(err.stack);
+export const errorHandler: ErrorRequestHandler = (
+  err: Error,
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  console.error(err.stack);
+  
     res.status(500).json({
-        status: "Error",
-        message: err.message || "An unexpected error occurred."
+        success: false,
+        error: {
+            message: "An unexpected error occurred.",
+            code: "INTERNAL_SERVER_ERROR"
+        }
     });
 };

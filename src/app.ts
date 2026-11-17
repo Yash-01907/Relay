@@ -24,7 +24,7 @@ app.get('/health/db', async (req,res)=>{
             database:"Healthy"
         })
     } catch(err){
-        res.status(500).json({
+        res.status(503).json({
             status:"Unhealthy",
             service:"Relay",
             database:"Unhealthy"
