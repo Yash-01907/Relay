@@ -1,6 +1,9 @@
 import express from "express";
 import {prismaClient} from "./lib/prisma.js";
 
+import { notFound } from "./middlewares/notFound.js";
+import { errorHandler } from "./middlewares/errorHandler.js";
+
 const app = express();
 
 app.use(express.json());
@@ -28,5 +31,8 @@ app.get('/health/db', async (req,res)=>{
         })
     }
 })
+
+app.use(notFound)
+app.use(errorHandler)
 
 export default app;
